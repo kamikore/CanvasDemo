@@ -13,7 +13,10 @@
 			>&#xe94e;</text>
 			<!-- 粗细度 -->
 			<Popover :visible="isActive == 'Thickness'">
-				<text :class="['iconfont', isActive == 'Thickness' ? 'isActive' : '']"  @click="isActive = 'Thickness'">&#xe600</text>
+				<text 
+					:class="['iconfont', isActive == 'Thickness' ? 'isActive' : '']"  
+					@click="isActive = (isActive == 'Thickness') ? '' : 'Thickness'"
+				>&#xe600</text>
 				<template #content>
 					<view class="thickness">
 						<slider 
@@ -32,7 +35,11 @@
 			</Popover>
 			<!-- 调色板 -->
 			<Popover :visible="isActive == 'ColorPalette'">
-				<uni-icons class="iconfont" type="color" @click="isActive = 'ColorPalette'"></uni-icons>
+				<uni-icons 
+					class="iconfont" 
+					type="color" 
+					@click="isActive = (isActive == 'ColorPalette') ? '' : 'ColorPalette'"
+				></uni-icons>
 				<template #content>
 					<view class="colorPalette">
 						<view
@@ -48,7 +55,7 @@
 					</view>
 				</template>
 			</Popover>
-			<!-- 插入文字 -->
+			<!-- 文本 -->
 			<popover :visible="isActive == 'Text'">
 				<uni-icons 
 					:class="['iconfont', isActive == 'Text' ? 'isActive' : '']" 
@@ -57,6 +64,13 @@
 				></uni-icons>
 				<template #content>
 					<view class="textBar">
+						<uni-data-select 
+							class="select" 
+							:localdata="fontSizeRange" 
+							:clear="false"
+							v-model="fontSize"
+							@change="val => ctx.setFontSize(val)"
+						/>
 						<view class="colorPalette">
 							<view
 								v-for="(color, index) in colorPalette"
@@ -79,8 +93,8 @@
 			style="width: 100%; height: 100%" 
 			canvas-id="canvas" 
 			class="canvas"
-			@touchmove="onTouchmove"
 			@touchstart="onTouchstart"
+			@touchmove="onTouchmove"
 			@touchend="onTouchend"
 		>
 			<!-- 橡皮擦 -->
@@ -97,23 +111,23 @@
 			<!-- 文本框 -->
 			<movable-area v-show="showTextbox" :style="{width: canvasWidth + 'px', height: canvasHeight + 'px'}">
 				<movable-view
-					:style="{
-						minWidth: minTextboxWidth + 'px',
-						minHeight: minTextboxHeight + 'px'
-					}"
 					direction="all"
 					:animation="false"
 					:x="textboxX"
 					:y="textboxY"
 					@change="onTextboxMove"
+					@touchstart.stop=""
+					@touchmove.stop=""
+					@touchend.stop=""
 				>
 					<textarea 
 						:value="text" 
 						:style="{
 							fontSize: fontSize + 'px',
-							color: fillColor
+							color: fillColor,
 						}"
-						@input="onTextboxInput" 
+						@input="e => text = e.detail.value"
+						focus
 						auto-height
 					></textarea>
 				</movable-view>		
@@ -126,6 +140,7 @@
 import { onLoad, onReady } from '@dcloudio/uni-app'
 import { ref, reactive, watchEffect } from 'vue'
 import Popover from '@/components/Popover.vue'
+import { rangeArray } from '@/utils/utils.js'
 
 // 调色板可选颜色
 const colorPalette = [
@@ -144,10 +159,14 @@ const thicknessDefault = 2
 
 // 画布参数
 let ctx = uni.createCanvasContext('canvas')	
-let startX = null
-let startY = null
 let canvasHeight = 0
 let canvasWidth = 0
+
+// 鼠标起点、终点坐标
+let startX = null
+let startY = null
+let endX = null
+let endY = null
 
 /* 
  撤销和恢复机制
@@ -175,22 +194,52 @@ const eraserSize = ref(30)
 const eraserX = ref(0)
 const eraserY = ref(0)
 
-// 文本框
+// 文本
+const fontSizeRange =  [
+	{ value: 1, text: 1 },
+	{ value: 2, text: 2 },
+	{ value: 3, text: 3 },
+	{ value: 4, text: 4 },
+	{ value: 5, text: 5 },
+	{ value: 6, text: 6 },
+	{ value: 7, text: 7 },
+	{ value: 8, text: 8 },
+	{ value: 9, text: 9 },
+	{ value: 10, text: 10 },
+	{ value: 11, text: 11 },
+	{ value: 12, text: 12 },
+	{ value: 13, text: 13 },
+	{ value: 14, text: 14 },
+	{ value: 15, text: 15 },
+	{ value: 16, text: 16 },
+	{ value: 17, text: 17 },
+	{ value: 18, text: 18 },
+	{ value: 19, text: 19 },
+	{ value: 20, text: 20 },
+	{ value: 21, text: 21 },
+	{ value: 22, text: 22 },
+	{ value: 23, text: 23 },
+	{ value: 24, text: 24 },
+	{ value: 25, text: 25 },
+	{ value: 26, text: 26 },
+	{ value: 27, text: 27 },
+	{ value: 28, text: 28 },
+	{ value: 29, text: 29 },
+	{ value: 30, text: 30 },
+]
 const isText = ref(false)
 const showTextbox = ref(false)
-const minTextboxWidth = 24
-const minTextboxHeight = 32
 const textboxX = ref(0)
 const textboxY = ref(0)
 const text = ref('')
 const fontSize = ref(16)
+
 
 watchEffect(() => {
 	ctx.setFillStyle(fillColor.value)
 	ctx.setStrokeStyle(strokeColor.value)
 })
 
-	
 function onTouchstart(e) {
 		
 	startX = e.changedTouches[0].x
@@ -199,8 +248,29 @@ function onTouchstart(e) {
 	eraserY.value = startY - eraserSize.value / 2
 	
 	if(isActive.value == 'Text') {
-		textboxX.value = startX - (minTextboxWidth / 2)
-		textboxY.value = startY - (minTextboxHeight / 2)
+		textboxX.value = startX - 8
+		textboxY.value = startY - fontSize.value - 4
+		ctx.fillText(text.value, endX, endY)
+		ctx.draw(true)
+		
+		// 如果文本框内容不为空，则保存状态
+		if(!text.value)
+			uni.canvasGetImageData({
+				canvasId: 'canvas',
+				x: 0,
+				y: 0,
+				width: canvasWidth,
+				height: canvasHeight,
+				success: res => {
+					undoStack.push(res.data)
+					console.log('redo', redoStack.length)
+					console.log('undo', undoStack.length)
+				},
+				fail: err => {
+					console.log('获取像素数据失败', err)
+				}
+			})
+		
 		text.value = ''
 		showTextbox.value = true
 		return
@@ -213,6 +283,7 @@ function onTouchstart(e) {
 		return
 	}
 	
+	isActive.value = ''
 	ctx.beginPath()
 	ctx.moveTo(startX, startY)
 	ctx.lineTo(startX, startY)
@@ -250,6 +321,12 @@ function onTouchmove(e) {
 function onTouchend(e) {
 	redoStack.length = 0
 	
+	if(isActive.value == 'Text') {
+		endX = e.changedTouches[0].x
+		endY = e.changedTouches[0].y + 8
+		return
+	}
+	
 	// 绘制结束后, 推入undoStack
 	uni.canvasGetImageData({
 		canvasId: 'canvas',
@@ -259,15 +336,13 @@ function onTouchend(e) {
 		height: canvasHeight,
 		success: res => {
 			undoStack.push(res.data)
+			console.log('redo', redoStack.length)
+			console.log('undo', undoStack.length)
 		},
 		fail: err => {
 			console.log('获取像素数据失败', err)
 		}
 	})
-	
-	if(isActive.value == 'Text') {
-	}
-	
 	
 }
 
@@ -282,6 +357,8 @@ function undo() {
 		
 		if(undoStack.length == 1) {
 			redoStack.push(undoStack.pop())
+			console.log('redo', redoStack.length)
+			console.log('undo', undoStack.length)
 			return
 		}
 		
@@ -294,6 +371,7 @@ function undo() {
 			data: undoStack[undoStack.length - 1],
 			success: res => {
 				redoStack.push(data)
+				
 			},
 			fail: err => {
 				console.log('绘制失败', err)
@@ -353,18 +431,8 @@ function reset() {
  */
 function onTextboxMove(e) {
 	const { x, y } = e.detail
-	textboxX.value = x
-	textboxY.value = y
-}
-
-/**
- * 文本框输入事件
- * @param {Object} e 事件对象
- */
-function onTextboxInput(e) {
-	text.value = e.detail.value
-	// ctx.fillText(e.detail.value, textboxX.value, textboxY.value)
-	// ctx.draw(true)
+	endX = x + 6
+	endY = y + fontSize.value + 8
 }
 
 
@@ -399,17 +467,15 @@ function save() {
 
 onLoad(() => {
 	// 初始化参数
-	ctx.setLineWidth(thicknessDefault)
 	ctx.setLineCap('round')
+	ctx.setLineWidth(thicknessDefault)
 	ctx.setFontSize(fontSize.value)
 	ctx.setStrokeStyle(strokeColor.value)
 	ctx.setFillStyle(fillColor.value)
 })
 
 
-
 onReady(() => {
-	
 	// 获取画布像素数据
 	uni.canvasGetImageData({
 		canvasId: 'canvas',
@@ -421,7 +487,6 @@ onReady(() => {
 		}
 	})
 })	
-	
 	
 </script>
 
@@ -488,6 +553,16 @@ onReady(() => {
 				
 			}
 		}
+		
+		.textBar {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			
+			.select {
+				width: 100px;
+			}
+		}
 	}
 	
 	.canvas {
@@ -503,10 +578,12 @@ onReady(() => {
 		movable-area {
 			
 			movable-view {
-				background-color: pink;
 				
 				textarea {
-					background-color: #9ab3d4;
+					box-sizing: border-box;
+					border: 1px solid #f4f4f4;
+					padding: 8px 6px;
+					min-width: 8px;
 				}
 			}
 		}
