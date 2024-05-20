@@ -60,7 +60,7 @@
 				<uni-icons 
 					:class="['iconfont', isActive == 'Text' ? 'isActive' : '']" 
 					type="font"
-					@click="isActive = (isActive == 'Text') ? '' : 'Text'"
+					@click="onTextClick"
 				></uni-icons>
 				<template #content>
 					<view class="textBar">
@@ -111,6 +111,10 @@
 			<!-- 文本框 -->
 			<movable-area v-show="showTextbox" :style="{width: canvasWidth + 'px', height: canvasHeight + 'px'}">
 				<movable-view
+					:style="{
+						width: movableWidth + 'px',
+						height: movableHeight + 'px',
+					}"
 					direction="all"
 					:animation="false"
 					:x="textboxX"
@@ -125,8 +129,10 @@
 						:style="{
 							fontSize: fontSize + 'px',
 							color: fillColor,
+							lineHeight: lineHeight
 						}"
 						@input="e => text = e.detail.value"
+						@linechange="onLineChange"
 						focus
 						auto-height
 					></textarea>
@@ -138,7 +144,7 @@
 
 <script setup>
 import { onLoad, onReady } from '@dcloudio/uni-app'
-import { ref, reactive, watchEffect } from 'vue'
+import { ref, reactive, watchEffect, computed, nextTick } from 'vue'
 import Popover from '@/components/Popover.vue'
 import { rangeArray } from '@/utils/utils.js'
 
@@ -227,18 +233,43 @@ const fontSizeRange =  [
 	{ value: 29, text: 29 },
 	{ value: 30, text: 30 },
 ]
-const isText = ref(false)
 const showTextbox = ref(false)
 const textboxX = ref(0)
 const textboxY = ref(0)
 const text = ref('')
 const fontSize = ref(16)
+const lineHeight = 1.2		// 取决文字大小
+const lineHeight2px = computed(() => 
+	fontSize.value * lineHeight
+)
 
+const movableHeight = ref(16 * 1.2 + 12)
+const movableWidth = computed(() => {
+	const res = text.value.split('\n').reduce((pre, curr) => {
+		return pre.length > curr.length ? pre : curr
+	}) 
+	
+	return ctx.measureText(res).width + 12 + 12 + 4
+})
+
+function onLineChange(e) {
+	movableHeight.value = e.detail.height + 12
+}
 
 watchEffect(() => {
 	ctx.setFillStyle(fillColor.value)
 	ctx.setStrokeStyle(strokeColor.value)
 })
+
+
+function onTextClick() {
+	if(isActive.value == 'Text') {
+		isActive.value = ''
+		showTextbox.value = false
+	} else {
+		isActive.value = 'Text'
+	}
+}
 
 function onTouchstart(e) {
 		
@@ -248,13 +279,15 @@ function onTouchstart(e) {
 	eraserY.value = startY - eraserSize.value / 2
 	
 	if(isActive.value == 'Text') {
-		textboxX.value = startX - 8
-		textboxY.value = startY - fontSize.value - 4
-		ctx.fillText(text.value, endX, endY)
+		textboxX.value = startX - 10
+		textboxY.value = startY - lineHeight2px.value / 2 
+		text.value.split('\n').forEach((val, i) => {
+			ctx.fillText(val, endX, endY + (fontSize.value * lineHeight * i))
+		})
 		ctx.draw(true)
 		
 		// 如果文本框内容不为空，则保存状态
-		if(!text.value)
+		if(text.value) {
 			uni.canvasGetImageData({
 				canvasId: 'canvas',
 				x: 0,
@@ -263,13 +296,14 @@ function onTouchstart(e) {
 				height: canvasHeight,
 				success: res => {
 					undoStack.push(res.data)
-					console.log('redo', redoStack.length)
 					console.log('undo', undoStack.length)
+					console.log('redo', redoStack.length)
 				},
 				fail: err => {
 					console.log('获取像素数据失败', err)
 				}
 			})
+		}
 		
 		text.value = ''
 		showTextbox.value = true
@@ -336,8 +370,8 @@ function onTouchend(e) {
 		height: canvasHeight,
 		success: res => {
 			undoStack.push(res.data)
-			console.log('redo', redoStack.length)
 			console.log('undo', undoStack.length)
+			console.log('redo', redoStack.length)
 		},
 		fail: err => {
 			console.log('获取像素数据失败', err)
@@ -357,8 +391,8 @@ function undo() {
 		
 		if(undoStack.length == 1) {
 			redoStack.push(undoStack.pop())
-			console.log('redo', redoStack.length)
 			console.log('undo', undoStack.length)
+			console.log('redo', redoStack.length)
 			return
 		}
 		
@@ -482,6 +516,7 @@ onReady(() => {
 		x: 0,
 		y: 0,
 		success: res => {
+			console.log('画布宽高', res.height, res.width)
 			canvasHeight = res.height
 			canvasWidth = res.width
 		}
@@ -492,10 +527,11 @@ onReady(() => {
 
 <style lang="scss" scoped>
 .page-container {
-	height: calc(100vh - var(--status-bar-height) - var(--window-top) - 48px);
+	height: calc(100vh - var(--status-bar-height) - var(--window-top) - 40px);
 	width: 100%;
 	
 	.header {
+		box-sizing: border-box;
 		height: 40px;
 		line-height: 40px;
 		border-bottom: 1px solid #eeeeee;
@@ -578,13 +614,16 @@ onReady(() => {
 		movable-area {
 			
 			movable-view {
+				min-width: 20px;
 				
 				textarea {
 					box-sizing: border-box;
-					border: 1px solid #f4f4f4;
-					padding: 8px 6px;
-					min-width: 8px;
+					width: 100%;
+					border: 1px solid #6b6b6b;
+					border-radius: 4px;
+					padding: 6px 8px;
 				}
+				
 			}
 		}
 	}
