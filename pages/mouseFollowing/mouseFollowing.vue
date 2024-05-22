@@ -43,7 +43,7 @@ function getColor() {
 
 
 function resize() {
-	for (let i = 0; i < 1; i++) {
+	for (let i = 0; i < 101; i++) {
 	  let r = 30;
 	  let x = Math.random() * (canvasWidth - 2 * r) + r
 	  let y = Math.random() * (canvasHeight - 2 * r) + r
@@ -86,10 +86,10 @@ function ob(x, y, r, cc, o, s) {
 			利用正弦函数, 余弦函数, 得到一个(x, y) -150 ~ 150 的正方形内的点
 			
 			为什么可以形成一个圆 ？
-			可以把x, y单独看，sin，cos函数都是一个点在 -1 ~ 1 之间规律运动, 因此如
+			可以把x, y单独看，sin，cos函数都是一个点在 -1 ~ 1 之间规律运动, 从函数图像结合弧度就可以看出上升下降关系 
 		*/
-		this.x = m.x + Math.cos(this.theta) * this.t;		
-		this.y = m.y + Math.cos(this.theta) * this.t;
+		this.x = m.x + Math.cos(this.theta) * this.t;			
+		this.y = m.y + Math.sin(this.theta) * this.t;
 		ctx.beginPath()
 		ctx.lineWidth = this.r
 		ctx.strokeStyle = this.cc
@@ -105,7 +105,8 @@ function anim() {
 	clearInterval(timeId)
 	// 可以减缓绘制频率, 观察绘制过程
 	timeId = setInterval(anim, 10)
-	// ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+	
+	// 通过不断覆盖一层透明层，使得颜色逐渐消失，留下残影
 	ctx.fillStyle = "rgba(0,0,0,0.05)";
 	ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 	a.forEach((e, i) => {

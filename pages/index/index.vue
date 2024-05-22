@@ -34,13 +34,20 @@
 				</template>
 			</Popover>
 			<!-- 调色板 -->
-			<Popover :visible="isActive == 'ColorPalette'">
+			<Popover :visible="isActive == 'ColorPalette' || isActive == 'ColorPick'">
 				<uni-icons 
 					class="iconfont" 
 					type="color" 
 					@click="isActive = (isActive == 'ColorPalette') ? '' : 'ColorPalette'"
 				></uni-icons>
 				<template #content>
+					<view class="colorPicker">
+						<text :class="['iconfont', isActive == 'ColorPick' ? 'isActive' : '']" @click="colorPick">&#xe676;</text>
+						<text class="val">{{colorPicker.r}}</text>
+						<text class="val">{{colorPicker.g}}</text>
+						<text class="val">{{colorPicker.b}}</text>
+						<text class="val">{{colorPicker.a / 255}}</text>
+					</view>
 					<view class="colorPalette">
 						<view
 							v-for="(color, index) in colorPalette"
@@ -192,7 +199,15 @@ const thickness = ref(thicknessDefault)
 
 // Stroke、fill 颜色
 const strokeColor = ref('#000000')
-const fillColor = ref('#000000')
+const fillColor = ref('#ffffff')
+
+// 取色器
+const colorPicker = ref({
+	r: 0,
+	b: 0,
+	g: 0,
+	a: 255
+})
 
 // 橡皮擦
 const showEraser = ref(false)
@@ -252,14 +267,24 @@ const movableWidth = computed(() => {
 	return ctx.measureText(res).width + 12 + 12 + 4
 })
 
-function onLineChange(e) {
-	movableHeight.value = e.detail.height + 12
-}
-
 watchEffect(() => {
 	ctx.setFillStyle(fillColor.value)
 	ctx.setStrokeStyle(strokeColor.value)
 })
+
+
+function onLineChange(e) {
+	movableHeight.value = e.detail.height + 12
+}
+
+
+function colorPick() {
+	if(isActive.value == 'ColorPick') {
+		isActive.value = 'ColorPalette'
+	} else {
+		isActive.value = 'ColorPick'
+	}
+}
 
 
 function onTextClick() {
@@ -271,12 +296,18 @@ function onTextClick() {
 	}
 }
 
+// 鼠标
 function onTouchstart(e) {
 		
 	startX = e.changedTouches[0].x
 	startY = e.changedTouches[0].y
 	eraserX.value = startX - eraserSize.value / 2
 	eraserY.value = startY - eraserSize.value / 2
+	
+	if(isActive.value == 'ColorPick') {
+		return
+	}
+	
 	
 	if(isActive.value == 'Text') {
 		textboxX.value = startX - 10
@@ -331,6 +362,24 @@ function onTouchmove(e) {
 	const newY = e.changedTouches[0].y
 	eraserY.value = newY - eraserSize.value / 2
 	eraserX.value = newX - eraserSize.value / 2
+	
+	
+	if(isActive.value == 'ColorPick') {
+		uni.canvasGetImageData({
+			canvasId: 'canvas',
+			x: newX,
+			y: newY,
+			width: 1,
+			height: 1, 
+			success: res => {
+				colorPicker.value.r = res.data[0]
+				colorPicker.value.g = res.data[1]
+				colorPicker.value.b = res.data[2]
+				colorPicker.value.a = res.data[3]
+			}
+		})
+		return
+	}
 	
 	if(isActive.value == 'Eraser') {
 		ctx.clearRect(newX - eraserSize.value / 2, newY - eraserSize.value / 2, eraserSize.value, eraserSize.value)
@@ -517,8 +566,10 @@ onReady(() => {
 		y: 0,
 		success: res => {
 			console.log('画布宽高', res.height, res.width)
-			canvasHeight = res.height
 			canvasWidth = res.width
+			canvasHeight = res.height
+			ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+			ctx.draw()
 		}
 	})
 })	
@@ -569,11 +620,26 @@ onReady(() => {
 				border-radius: 50%;
 			}
 		}
-
+		
+		.colorPicker {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			
+			.val {
+				border: 1px solid #dfdfdf;
+				padding: 0 12px;
+				border-radius: 8px;
+				text-align: center;
+			}
+			
+		}
 		
 		.colorPalette {
 			display: flex;
 			justify-content: space-around;
+			align-items: center;
+			margin-top: 8px;
 			
 			.color {
 				width: 20px;
